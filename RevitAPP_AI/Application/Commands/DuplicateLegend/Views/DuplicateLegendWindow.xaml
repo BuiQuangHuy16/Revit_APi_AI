@@ -1,0 +1,107 @@
+<Window x:Class="Aplication.Commands.DuplicateLegend.Views.DuplicateLegendWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Duplicate Legends"
+        Width="720"
+        Height="560"
+        MinWidth="560"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Search + bulk select -->
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Search:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox Grid.Column="1" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" Height="26"/>
+            <Button Grid.Column="2" Content="Select All" Command="{Binding SelectAllCommand}" Margin="8,0,4,0" Padding="10,3" MinWidth="80"/>
+            <Button Grid.Column="3" Content="None" Command="{Binding SelectNoneCommand}" Padding="10,3" MinWidth="60"/>
+        </Grid>
+
+        <!-- Legend list -->
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding FilteredLegends}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserSortColumns="True"
+                  CanUserResizeRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  SelectionUnit="FullRow"
+                  RowHeaderWidth="0">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="✓" Width="40" CanUserSort="True" SortMemberPath="IsSelected">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Legend Name" Binding="{Binding LegendName}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="On Sheets" Binding="{Binding SheetUsageCount}" Width="90" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Status -->
+        <TextBlock Grid.Row="2" Margin="0,6,0,6">
+            <Run Text="Selected: "/>
+            <Run Text="{Binding SelectedCount, Mode=OneWay}" FontWeight="Bold"/>
+            <Run Text=" / "/>
+            <Run Text="{Binding AllLegends.Count, Mode=OneWay}"/>
+        </TextBlock>
+
+        <!-- Options + buttons -->
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Header="Placement" Margin="0,0,0,8" Padding="8,4">
+                <StackPanel Orientation="Vertical">
+                    <RadioButton Content="Pick point (xếp ngang sang phải, cách 10mm)"
+                                 IsChecked="{Binding IsPickPointMode, Mode=TwoWay}"
+                                 GroupName="PlacementMode"
+                                 Margin="0,2,0,2"/>
+                    <RadioButton Content="Replace (thay viewport gốc trên sheet hiện tại)"
+                                 IsChecked="{Binding IsReplaceMode, Mode=TwoWay}"
+                                 IsEnabled="{Binding ActiveViewIsSheet}"
+                                 GroupName="PlacementMode"
+                                 Margin="0,2,0,2"/>
+                </StackPanel>
+            </GroupBox>
+
+            <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Copies per legend:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Text="{Binding CopiesPerLegend, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsPickPointMode}"
+                         Width="60" VerticalContentAlignment="Center" Height="24"/>
+                <TextBlock Text="(1-50)" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="Gray"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="OK" Command="{Binding OkCommand}" Width="86" Height="28" Margin="0,0,8,0" IsDefault="True"/>
+                <Button Content="Cancel" Command="{Binding CancelCommand}" Width="86" Height="28" IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

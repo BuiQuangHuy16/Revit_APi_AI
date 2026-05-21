@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.Attributes;
+using Autodesk.Revit.UI;
 using Nice3point.Revit.Toolkit.External;
 
 namespace Aplication.Commands
@@ -12,6 +13,7 @@ namespace Aplication.Commands
     {
         public override void Execute()
         {
+            TaskDialog.Show("Hello World", "Xin chào từ Revit Add-in đầu tiên của tôi!");
         }
     }
 }

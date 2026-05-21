@@ -1,4 +1,7 @@
 ﻿using Aplication.Commands;
+using Aplication.Commands.AutoDimColumns;
+using Aplication.Commands.DuplicateLegend;
+using Aplication.Commands.DuplicateSheet;
 using Nice3point.Revit.Toolkit.External;
 using Serilog;
 using Serilog.Events;
@@ -26,7 +29,19 @@ namespace Aplication
         {
             var panel = Application.CreatePanel("Commands", "Aplication");
 
-            panel.AddPushButton<StartupCommand>("Execute")
+            panel.AddPushButton<StartupCommand>("Hello World")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<DuplicateSheetsCommand>("Duplicate\nSheets")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<DuplicateLegendCommand>("Duplicate\nLegend")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<AutoDimColumnsCommand>("Auto Dim\nColumns")
                 .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
         }

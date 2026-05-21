@@ -1,0 +1,99 @@
+<Window x:Class="Aplication.Commands.AutoDimColumns.Views.AutoDimColumnsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Auto Dim Columns"
+        Width="480"
+        Height="470"
+        MinWidth="440"
+        MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Dimension Style -->
+        <GroupBox Grid.Row="0" Header="Dimension Style" Padding="8" Margin="0,0,0,8">
+            <ComboBox ItemsSource="{Binding DimensionTypes}"
+                      SelectedItem="{Binding SelectedDimensionType}"
+                      DisplayMemberPath="Name"
+                      Height="26"/>
+        </GroupBox>
+
+        <!-- Khoảng cách -->
+        <GroupBox Grid.Row="1" Header="Khoảng cách (mm)" Padding="8" Margin="0,0,0,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Offset từ mặt cột tới dim 1:"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <TextBox   Grid.Row="0" Grid.Column="1"
+                           Text="{Binding Offset, UpdateSourceTrigger=PropertyChanged}"
+                           Height="24" VerticalContentAlignment="Center" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
+                           Text="(Dim 2 = face-face tự cách dim 1 đúng bằng giá trị trên)"
+                           Foreground="Gray" FontSize="11" Margin="0,0,0,8"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Ngưỡng tránh đè text:"
+                           VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <TextBox   Grid.Row="2" Grid.Column="1"
+                           Text="{Binding TextClearance, UpdateSourceTrigger=PropertyChanged}"
+                           Height="24" VerticalContentAlignment="Center" Margin="0,0,0,4"/>
+
+                <TextBlock Grid.Row="3" Grid.ColumnSpan="2"
+                           Text="(Text dim nằm trong ngưỡng này so với chân dim sẽ tự dịch sang bên)"
+                           Foreground="Gray" FontSize="11"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Tùy chọn -->
+        <GroupBox Grid.Row="2" Header="Tùy chọn" Padding="8" Margin="0,0,0,8">
+            <StackPanel>
+                <CheckBox Content="Tạo dim tổng grid-to-grid (top + left)"
+                          IsChecked="{Binding IncludeOverallGridChain}"
+                          Margin="0,0,0,6"/>
+                <CheckBox x:Name="SkipBox"
+                          Content="Skip cột không có grid trong bán kính"
+                          IsChecked="{Binding SkipColumnsWithoutNearbyGrid}"
+                          Margin="0,0,0,6"/>
+                <Grid Margin="20,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Bán kính tìm grid (mm):"
+                               VerticalAlignment="Center"/>
+                    <TextBox   Grid.Column="1"
+                               Text="{Binding MaxGridSearchRadius, UpdateSourceTrigger=PropertyChanged}"
+                               IsEnabled="{Binding IsChecked, ElementName=SkipBox}"
+                               Height="24" VerticalContentAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </GroupBox>
+
+        <Grid Grid.Row="3"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" Command="{Binding OkCommand}"
+                    Width="90" Height="28" Margin="0,0,8,0" IsDefault="True"/>
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    Width="90" Height="28" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

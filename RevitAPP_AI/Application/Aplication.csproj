@@ -24,6 +24,9 @@
         <!-- Build Automation-->
         <PackageReference Include="ILRepack" Version="2.0.44"/>
 
+        <!-- JSON (needed for .NET Framework 4.8 = Revit 2023/2024; .NET 8+ already includes it) -->
+        <PackageReference Include="System.Text.Json" Version="8.0.5" Condition="'$(TargetFramework)' == 'net48'"/>
+
         <!-- Development Dependencies -->
         <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" PrivateAssets="all"/>
         <PackageReference Include="Polyfill" Version="10.5.1" PrivateAssets="all"/>
