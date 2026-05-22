@@ -8,6 +8,7 @@ using Aplication.Commands.DuplicateLegend.Views;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using Autodesk.Revit.UI.Selection;
 using Nice3point.Revit.Toolkit.External;
 
 namespace Aplication.Commands.DuplicateLegend
@@ -22,66 +23,47 @@ namespace Aplication.Commands.DuplicateLegend
             var doc = uidoc.Document;
             var activeSheet = uidoc.ActiveView as ViewSheet;
 
-            // Pre-selection: read legend viewports on active sheet that user already selected.
-            var preselectedLegendIds = new HashSet<ElementId>();
-            foreach (var id in uidoc.Selection.GetElementIds())
+            if (activeSheet == null)
             {
-                if (!(doc.GetElement(id) is Viewport vp)) continue;
-                if (!(doc.GetElement(vp.ViewId) is View v)) continue;
-                if (v.ViewType == ViewType.Legend && !v.IsTemplate)
-                    preselectedLegendIds.Add(v.Id);
-            }
-
-            // Collect all legends + count usage on sheets.
-            var allViewports = new FilteredElementCollector(doc)
-                .OfClass(typeof(Viewport))
-                .Cast<Viewport>()
-                .ToList();
-
-            var legends = new FilteredElementCollector(doc)
-                .OfClass(typeof(View))
-                .Cast<View>()
-                .Where(v => v.ViewType == ViewType.Legend && !v.IsTemplate)
-                .OrderBy(v => v.Name)
-                .Select(v => new LegendItem
-                {
-                    LegendId = v.Id,
-                    LegendName = v.Name,
-                    SheetUsageCount = allViewports
-                        .Where(vp => vp.ViewId == v.Id)
-                        .Select(vp => vp.SheetId)
-                        .Distinct()
-                        .Count(),
-                    IsSelected = preselectedLegendIds.Contains(v.Id)
-                })
-                .ToList();
-
-            if (legends.Count == 0)
-            {
-                TaskDialog.Show("Duplicate Legends", "Không có legend nào trong project.");
+                TaskDialog.Show("Duplicate Legends", "Hãy mở 1 sheet rồi chạy lệnh.");
                 return;
             }
 
-            var viewModel = new DuplicateLegendViewModel(legends, activeSheet != null);
+            // 1. Pre-selection: lọc viewport legend thuộc active sheet.
+            var selection = BuildFromPreselection(uidoc, activeSheet);
+
+            // 2. Nếu rỗng → prompt PickObjects.
+            if (selection.Count == 0)
+            {
+                IList<Reference> refs;
+                try
+                {
+                    refs = uidoc.Selection.PickObjects(
+                        ObjectType.Element,
+                        new LegendViewportFilter(doc, activeSheet.Id),
+                        "Chọn legend trên sheet (Esc để huỷ)");
+                }
+                catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+                {
+                    return;
+                }
+
+                selection = BuildFromReferences(doc, refs);
+            }
+
+            if (selection.Count == 0) return;
+
+            // 3. Dialog hỏi mode (Duplicate / Replace).
+            var viewModel = new DuplicateLegendViewModel(selection.Count);
             var window = new DuplicateLegendWindow(viewModel);
             new WindowInteropHelper(window).Owner = uidoc.Application.MainWindowHandle;
 
             var dialogResult = window.ShowDialog();
             if (dialogResult != true) return;
 
-            var selected = viewModel.GetSelected().ToList();
-            if (selected.Count == 0) return;
-
             var options = viewModel.GetOptions();
 
-            // Both modes need active view to be a sheet.
-            if (activeSheet == null)
-            {
-                TaskDialog.Show("Duplicate Legends", "View hiện tại không phải sheet. Hãy mở 1 sheet và thử lại.");
-                return;
-            }
-
-            // PickPoint: prompt user AFTER dialog closes (Revit refuses pick while modal WPF dialog is open).
+            // 4. PickPoint sau khi đóng dialog (Revit refuses pick while modal WPF dialog is open).
             if (options.Mode == PlacementMode.PickPoint)
             {
                 try
@@ -94,7 +76,8 @@ namespace Aplication.Commands.DuplicateLegend
                 }
             }
 
-            var result = LegendDuplicator.Run(doc, activeSheet, selected, options);
+            // 5. Execute.
+            var result = LegendDuplicator.Run(doc, activeSheet, selection, options);
 
             if (result.FirstCreatedViewportId != null && result.FirstCreatedViewportId != ElementId.InvalidElementId)
             {
@@ -107,5 +90,77 @@ namespace Aplication.Commands.DuplicateLegend
 
             TaskDialog.Show("Duplicate Legends", summary);
         }
+
+        private static List<SelectedViewport> BuildFromPreselection(UIDocument uidoc, ViewSheet activeSheet)
+        {
+            var doc = uidoc.Document;
+            var list = new List<SelectedViewport>();
+            foreach (var id in uidoc.Selection.GetElementIds())
+            {
+                var vp = doc.GetElement(id) as Viewport;
+                if (vp == null) continue;
+                if (vp.SheetId != activeSheet.Id) continue;
+                var v = doc.GetElement(vp.ViewId) as View;
+                if (v == null || v.ViewType != ViewType.Legend || v.IsTemplate) continue;
+
+                list.Add(BuildSelectedViewport(vp, v));
+            }
+            return list;
+        }
+
+        private static List<SelectedViewport> BuildFromReferences(Document doc, IList<Reference> refs)
+        {
+            var list = new List<SelectedViewport>();
+            if (refs == null) return list;
+            foreach (var r in refs)
+            {
+                var vp = doc.GetElement(r.ElementId) as Viewport;
+                if (vp == null) continue;
+                var v = doc.GetElement(vp.ViewId) as View;
+                if (v == null || v.ViewType != ViewType.Legend || v.IsTemplate) continue;
+
+                list.Add(BuildSelectedViewport(vp, v));
+            }
+            return list;
+        }
+
+        private static SelectedViewport BuildSelectedViewport(Viewport vp, View legend)
+        {
+            XYZ center = null;
+            ElementId typeId = null;
+            try { center = vp.GetBoxCenter(); } catch { }
+            try { typeId = vp.GetTypeId(); } catch { }
+
+            return new SelectedViewport
+            {
+                ViewportId = vp.Id,
+                LegendId = legend.Id,
+                LegendName = legend.Name,
+                Center = center,
+                TypeId = typeId
+            };
+        }
+    }
+
+    public class LegendViewportFilter : ISelectionFilter
+    {
+        private readonly Document _doc;
+        private readonly ElementId _sheetId;
+
+        public LegendViewportFilter(Document doc, ElementId sheetId)
+        {
+            _doc = doc;
+            _sheetId = sheetId;
+        }
+
+        public bool AllowElement(Element elem)
+        {
+            if (!(elem is Viewport vp)) return false;
+            if (vp.SheetId != _sheetId) return false;
+            var v = _doc.GetElement(vp.ViewId) as View;
+            return v != null && v.ViewType == ViewType.Legend && !v.IsTemplate;
+        }
+
+        public bool AllowReference(Reference reference, XYZ position) => true;
     }
 }

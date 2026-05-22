@@ -17,12 +17,13 @@ namespace Aplication.Commands.DuplicateLegend.Services
     {
         public static LegendDuplicationResult Run(
             Document doc,
-            ViewSheet targetSheet,
-            IEnumerable<LegendItem> selectedLegends,
+            ViewSheet sheet,
+            IEnumerable<SelectedViewport> selection,
             DuplicateLegendOptions options)
         {
             var result = new LegendDuplicationResult();
             var viewNames = LoadExistingViewNames(doc);
+            var titleType = FindTitleViewportType(doc);
 
             var spacingFt = UnitUtils.ConvertToInternalUnits(options.HorizontalSpacingMm, UnitTypeId.Millimeters);
             double cursorX = options.PickedPoint?.X ?? 0.0;
@@ -32,47 +33,57 @@ namespace Aplication.Commands.DuplicateLegend.Services
             {
                 tx.Start();
 
-                foreach (var item in selectedLegends)
+                // CRITICAL: chặn Revit auto-rollback SubTransaction khi gặp warning
+                // (View.Duplicate / Viewport.Create / Regenerate đều có thể sinh warning).
+                var fho = tx.GetFailureHandlingOptions();
+                fho.SetFailuresPreprocessor(new SuppressWarningsPreprocessor());
+                fho.SetForcedModalHandling(false);
+                fho.SetClearAfterRollback(true);
+                fho.SetDelayedMiniWarnings(true);
+                tx.SetFailureHandlingOptions(fho);
+
+                foreach (var sv in selection)
                 {
-                    var sourceLegend = doc.GetElement(item.LegendId) as View;
+                    var sourceLegend = doc.GetElement(sv.LegendId) as View;
                     if (sourceLegend == null || sourceLegend.ViewType != ViewType.Legend) continue;
 
-                    var copies = options.Mode == PlacementMode.Replace ? 1 : Math.Max(1, options.CopiesPerLegend);
-
-                    for (var copyIndex = 1; copyIndex <= copies; copyIndex++)
+                    using (var sub = new SubTransaction(doc))
                     {
-                        using (var sub = new SubTransaction(doc))
+                        sub.Start();
+                        try
                         {
-                            sub.Start();
-                            try
+                            Viewport newVp;
+                            if (options.Mode == PlacementMode.PickPoint)
                             {
-                                Viewport newVp;
-                                if (options.Mode == PlacementMode.PickPoint)
-                                {
-                                    newVp = PlacePickPoint(doc, targetSheet, sourceLegend, ref cursorX, cursorY, spacingFt, copyIndex, viewNames);
-                                }
-                                else
-                                {
-                                    newVp = PlaceReplace(doc, targetSheet, sourceLegend, copyIndex, viewNames);
-                                    if (newVp == null)
-                                    {
-                                        sub.RollBack();
-                                        result.Errors.Add($"Legend '{sourceLegend.Name}' không có viewport trên sheet hiện tại.");
-                                        continue;
-                                    }
-                                }
+                                newVp = PlacePickPoint(doc, sheet, sv, sourceLegend, ref cursorX, cursorY, spacingFt, viewNames, titleType);
+                            }
+                            else
+                            {
+                                newVp = PlaceReplace(doc, sheet, sv, sourceLegend, viewNames, titleType);
+                            }
 
+                            // Revit có thể đã tự rollback sub do warning trong khi regenerate.
+                            // Chỉ commit nếu sub thực sự còn ở trạng thái Started.
+                            if (sub.GetStatus() == TransactionStatus.Started)
+                            {
                                 sub.Commit();
 
                                 result.CreatedCount++;
                                 if (result.FirstCreatedViewportId == null || result.FirstCreatedViewportId == ElementId.InvalidElementId)
                                     result.FirstCreatedViewportId = newVp.Id;
                             }
-                            catch (Exception ex)
+                            else
                             {
-                                sub.RollBack();
-                                result.Errors.Add($"Legend '{sourceLegend.Name}' (copy {copyIndex}): {ex.Message}");
+                                result.Errors.Add($"Legend '{sourceLegend.Name}': Revit huỷ thao tác (status={sub.GetStatus()}).");
                             }
+                        }
+                        catch (Exception ex)
+                        {
+                            if (sub.GetStatus() == TransactionStatus.Started)
+                            {
+                                try { sub.RollBack(); } catch { /* sub đã ended */ }
+                            }
+                            result.Errors.Add($"Legend '{sourceLegend.Name}': {ex.Message}");
                         }
                     }
                 }
@@ -86,19 +97,41 @@ namespace Aplication.Commands.DuplicateLegend.Services
         private static Viewport PlacePickPoint(
             Document doc,
             ViewSheet sheet,
+            SelectedViewport sv,
             View sourceLegend,
             ref double cursorX,
             double cursorY,
             double spacingFt,
-            int copyIndex,
-            HashSet<string> viewNames)
+            HashSet<string> viewNames,
+            ElementType titleType)
         {
-            var newViewId = DuplicateLegendView(doc, sourceLegend, copyIndex, viewNames);
-            var placePoint = new XYZ(cursorX, cursorY, 0);
-            var vp = Viewport.Create(doc, sheet.Id, newViewId, placePoint);
+            // Đo width từ source viewport (đã regenerate sẵn) — tránh phụ thuộc
+            // vào regen sau Viewport.Create.
+            var sourceVp = doc.GetElement(sv.ViewportId) as Viewport;
+            var width = sourceVp != null
+                ? TryReadOutlineWidth(sourceVp, fallback: spacingFt * 10)
+                : spacingFt * 10;
 
-            var outline = vp.GetBoxOutline();
-            var width = outline.MaximumPoint.X - outline.MinimumPoint.X;
+            var newViewId = DuplicateLegendView(doc, sourceLegend, viewNames);
+
+            // Đặt CENTER tại (cursorX + width/2) để mép trái = cursorX.
+            var placeCenter = new XYZ(cursorX + width / 2.0, cursorY, 0);
+            var vp = Viewport.Create(doc, sheet.Id, newViewId, placeCenter);
+            if (vp == null)
+                throw new InvalidOperationException("Không tạo được viewport (vị trí ngoài sheet hoặc bị Revit từ chối).");
+
+            // Áp viewport type có hiển thị title TRƯỚC khi regenerate để box bao gồm title bar.
+            if (titleType != null)
+            {
+                try { vp.ChangeTypeId(titleType.Id); } catch { }
+            }
+
+            doc.Regenerate();
+
+            // Viewport.Create() đặt ORIGIN tại point, không phải box center.
+            // SetBoxCenter() buộc box center vào đúng vị trí mong muốn.
+            try { vp.SetBoxCenter(placeCenter); } catch { }
+
             cursorX += width + spacingFt;
 
             return vp;
@@ -107,74 +140,113 @@ namespace Aplication.Commands.DuplicateLegend.Services
         private static Viewport PlaceReplace(
             Document doc,
             ViewSheet sheet,
+            SelectedViewport sv,
             View sourceLegend,
-            int copyIndex,
-            HashSet<string> viewNames)
+            HashSet<string> viewNames,
+            ElementType titleType)
         {
-            var existing = new FilteredElementCollector(doc, sheet.Id)
-                .OfClass(typeof(Viewport))
-                .Cast<Viewport>()
-                .FirstOrDefault(v => v.ViewId == sourceLegend.Id);
+            var existing = doc.GetElement(sv.ViewportId) as Viewport;
+            if (existing == null)
+                throw new InvalidOperationException("Viewport gốc không còn trên sheet.");
 
-            if (existing == null) return null;
+            // Dùng giá trị đã capture lúc chọn. Fallback nếu thiếu.
+            var center = sv.Center ?? existing.GetBoxCenter();
+            var existingTypeId = sv.TypeId ?? existing.GetTypeId();
 
-            var center = existing.GetBoxCenter();
-            var existingTypeId = existing.GetTypeId();
+            doc.Delete(sv.ViewportId);
 
-            doc.Delete(existing.Id);
-
-            var newViewId = DuplicateLegendView(doc, sourceLegend, copyIndex, viewNames);
+            var newViewId = DuplicateLegendView(doc, sourceLegend, viewNames);
             var vp = Viewport.Create(doc, sheet.Id, newViewId, center);
+            if (vp == null)
+                throw new InvalidOperationException("Không tạo được viewport mới tại vị trí gốc.");
 
-            try { vp.ChangeTypeId(existingTypeId); } catch { }
+            // Áp viewport type TRƯỚC khi Regenerate để box outline bao gồm title bar.
+            // Ưu tiên type của viewport gốc; nếu type đó KHÔNG hiển thị label thì
+            // fallback sang titleType để title luôn hiện ra trên viewport mới.
+            var typeIdToApply = ResolveTypeShowingLabel(doc, existingTypeId, titleType);
+            if (typeIdToApply != null && typeIdToApply != ElementId.InvalidElementId)
+            {
+                try { vp.ChangeTypeId(typeIdToApply); } catch { }
+            }
+
+            doc.Regenerate();
+
+            // FIX vị trí: Viewport.Create dùng point làm ORIGIN, không phải BOX CENTER.
+            // Phải SetBoxCenter sau khi đã áp type (box outline đã gồm title bar).
+            try { vp.SetBoxCenter(center); } catch { }
 
             return vp;
+        }
+
+        private static ElementId ResolveTypeShowingLabel(Document doc, ElementId preferredTypeId, ElementType titleType)
+        {
+            if (preferredTypeId != null && preferredTypeId != ElementId.InvalidElementId)
+            {
+                if (doc.GetElement(preferredTypeId) is ElementType pref)
+                {
+                    var p = pref.get_Parameter(BuiltInParameter.VIEWPORT_ATTR_SHOW_LABEL);
+                    if (p != null && p.AsInteger() == 1)
+                        return pref.Id;
+                }
+            }
+            return titleType?.Id;
+        }
+
+        private static double TryReadOutlineWidth(Viewport vp, double fallback)
+        {
+            try
+            {
+                var outline = vp.GetBoxOutline();
+                if (outline == null) return fallback;
+                var min = outline.MinimumPoint;
+                var max = outline.MaximumPoint;
+                if (min == null || max == null) return fallback;
+                var width = max.X - min.X;
+                return width > 0 ? width : fallback;
+            }
+            catch
+            {
+                return fallback;
+            }
         }
 
         private static ElementId DuplicateLegendView(
             Document doc,
             View sourceLegend,
-            int copyIndex,
             HashSet<string> viewNames)
         {
-            if (!sourceLegend.CanViewBeDuplicated(ViewDuplicateOption.Duplicate))
-                throw new InvalidOperationException($"Legend '{sourceLegend.Name}' không thể duplicate.");
+            // CRITICAL: dùng WithDetailing để Revit tự copy nội dung legend.
+            // KHÔNG dùng Duplicate + ElementTransformUtils.CopyElements vì gây
+            // lỗi đè nét (lines bị nhân đôi) trên legend mới.
+            var option = sourceLegend.CanViewBeDuplicated(ViewDuplicateOption.WithDetailing)
+                ? ViewDuplicateOption.WithDetailing
+                : ViewDuplicateOption.Duplicate;
 
-            var newId = sourceLegend.Duplicate(ViewDuplicateOption.Duplicate);
+            var newId = sourceLegend.Duplicate(option);
             if (newId == null || newId == ElementId.InvalidElementId)
                 throw new InvalidOperationException($"Legend '{sourceLegend.Name}' không thể duplicate.");
 
-            if (doc.GetElement(newId) is View newView)
-            {
-                var uniqueName = ResolveUniqueName(sourceLegend.Name, viewNames, copyIndex);
-                try { newView.Name = uniqueName; } catch { /* keep auto name */ }
-            }
+            var newView = doc.GetElement(newId) as View;
+            if (newView == null)
+                throw new InvalidOperationException($"Không lấy được legend duplicate cho '{sourceLegend.Name}'.");
 
-            // Legend.Duplicate() returns an empty legend view — must copy contents manually.
-            var contentIds = new FilteredElementCollector(doc, sourceLegend.Id)
-                .WhereElementIsNotElementType()
-                .Where(e => e.OwnerViewId == sourceLegend.Id)
-                .Select(e => e.Id)
-                .ToList();
-
-            if (contentIds.Count > 0)
-            {
-                try
-                {
-                    ElementTransformUtils.CopyElements(
-                        sourceLegend,
-                        contentIds,
-                        doc.GetElement(newId) as View,
-                        Transform.Identity,
-                        new CopyPasteOptions());
-                }
-                catch
-                {
-                    // best-effort: ignore elements that cannot be copied
-                }
-            }
+            var uniqueName = ResolveUniqueName(sourceLegend.Name, viewNames);
+            try { newView.Name = uniqueName; } catch { /* keep auto name */ }
 
             return newId;
+        }
+
+        private static ElementType FindTitleViewportType(Document doc)
+        {
+            return new FilteredElementCollector(doc)
+                .OfClass(typeof(ElementType))
+                .OfCategory(BuiltInCategory.OST_Viewports)
+                .Cast<ElementType>()
+                .FirstOrDefault(t =>
+                {
+                    var p = t.get_Parameter(BuiltInParameter.VIEWPORT_ATTR_SHOW_LABEL);
+                    return p != null && p.AsInteger() == 1;
+                });
         }
 
         private static HashSet<string> LoadExistingViewNames(Document doc)
@@ -187,24 +259,32 @@ namespace Aplication.Commands.DuplicateLegend.Services
             return set;
         }
 
-        private static string ResolveUniqueName(string originalName, HashSet<string> used, int preferredIndex)
+        private static string ResolveUniqueName(string originalName, HashSet<string> used)
         {
-            var preferred = $"{originalName} Copy {preferredIndex}";
-            if (!used.Contains(preferred))
-            {
-                used.Add(preferred);
-                return preferred;
-            }
-
             for (var i = 1; i < 10000; i++)
             {
-                var candidate = $"{originalName} Copy {i}";
+                var candidate = $"{originalName} - Copy {i}";
                 if (used.Contains(candidate)) continue;
                 used.Add(candidate);
                 return candidate;
             }
+            return originalName + " - Copy " + Guid.NewGuid().ToString("N").Substring(0, 6);
+        }
+    }
 
-            return originalName + " Copy " + Guid.NewGuid().ToString("N").Substring(0, 6);
+    /// Xoá mọi warning trước khi Revit tự rollback SubTransaction.
+    /// Cần thiết vì View.Duplicate/Viewport.Create/Regenerate sinh warnings
+    /// và default FailuresService sẽ rollback sub-transaction trước khi code trở lại.
+    internal class SuppressWarningsPreprocessor : IFailuresPreprocessor
+    {
+        public FailureProcessingResult PreprocessFailures(FailuresAccessor a)
+        {
+            foreach (var f in a.GetFailureMessages())
+            {
+                if (f.GetSeverity() == FailureSeverity.Warning)
+                    a.DeleteWarning(f);
+            }
+            return FailureProcessingResult.Continue;
         }
     }
 }
