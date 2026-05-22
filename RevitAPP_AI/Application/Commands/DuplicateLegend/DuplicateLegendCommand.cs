@@ -3,7 +3,6 @@ using System.Linq;
 using System.Windows.Interop;
 using Aplication.Commands.DuplicateLegend.Models;
 using Aplication.Commands.DuplicateLegend.Services;
-using Aplication.Commands.DuplicateLegend.ViewModels;
 using Aplication.Commands.DuplicateLegend.Views;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
@@ -54,14 +53,17 @@ namespace Aplication.Commands.DuplicateLegend
             if (selection.Count == 0) return;
 
             // 3. Dialog hỏi mode (Duplicate / Replace).
-            var viewModel = new DuplicateLegendViewModel(selection.Count);
-            var window = new DuplicateLegendWindow(viewModel);
+            var window = new DuplicateLegendWindow(selection.Count);
             new WindowInteropHelper(window).Owner = uidoc.Application.MainWindowHandle;
 
             var dialogResult = window.ShowDialog();
             if (dialogResult != true) return;
 
-            var options = viewModel.GetOptions();
+            var options = new DuplicateLegendOptions
+            {
+                Mode = window.SelectedMode,
+                HorizontalSpacingMm = 10.0
+            };
 
             // 4. PickPoint sau khi đóng dialog (Revit refuses pick while modal WPF dialog is open).
             if (options.Mode == PlacementMode.PickPoint)

@@ -2,6 +2,7 @@
 using Aplication.Commands.AutoDimColumns;
 using Aplication.Commands.DuplicateLegend;
 using Aplication.Commands.DuplicateSheet;
+using Aplication.Commands.LegendAssociate;
 using Nice3point.Revit.Toolkit.External;
 using Serilog;
 using Serilog.Events;
@@ -38,6 +39,10 @@ namespace Aplication
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
 
             panel.AddPushButton<DuplicateLegendCommand>("Duplicate\nLegend")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<LegendAssociateCommand>("Legend\nAssociate")
                 .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
 

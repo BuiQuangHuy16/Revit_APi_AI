@@ -1,24 +1,31 @@
 using System.Windows;
-using Aplication.Commands.DuplicateLegend.ViewModels;
+using Aplication.Commands.DuplicateLegend.Models;
 
 namespace Aplication.Commands.DuplicateLegend.Views
 {
     public partial class DuplicateLegendWindow : Window
     {
-        private readonly DuplicateLegendViewModel _viewModel;
+        public PlacementMode SelectedMode { get; private set; } = PlacementMode.PickPoint;
 
-        public DuplicateLegendWindow(DuplicateLegendViewModel viewModel)
+        public DuplicateLegendWindow(int selectedCount)
         {
             InitializeComponent();
-            _viewModel = viewModel;
-            DataContext = viewModel;
-            _viewModel.RequestClose += OnRequestClose;
+            LabelCount.Inlines.Clear();
+            LabelCount.Inlines.Add(new System.Windows.Documents.Run("Đã chọn: "));
+            LabelCount.Inlines.Add(new System.Windows.Documents.Run(selectedCount.ToString()) { FontWeight = FontWeights.Bold });
+            LabelCount.Inlines.Add(new System.Windows.Documents.Run(" legend"));
         }
 
-        private void OnRequestClose(bool result)
+        private void OnDuplicateClick(object sender, RoutedEventArgs e)
         {
-            DialogResult = result;
-            Close();
+            SelectedMode = PlacementMode.PickPoint;
+            DialogResult = true;
+        }
+
+        private void OnReplaceClick(object sender, RoutedEventArgs e)
+        {
+            SelectedMode = PlacementMode.Replace;
+            DialogResult = true;
         }
     }
 }
