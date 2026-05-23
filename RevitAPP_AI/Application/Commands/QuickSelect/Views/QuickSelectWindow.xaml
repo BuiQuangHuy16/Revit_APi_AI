@@ -1,0 +1,70 @@
+<Window x:Class="Aplication.Commands.QuickSelect.Views.QuickSelectWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Aplication.Commands.QuickSelect.ViewModels"
+        Title="Quick Select - MV_tool"
+        Width="420"
+        Height="560"
+        MinWidth="380"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <HierarchicalDataTemplate DataType="{x:Type vm:ParameterNodeViewModel}"
+                                  ItemsSource="{Binding Values}">
+            <StackPanel Orientation="Horizontal">
+                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                          IsThreeState="True"
+                          VerticalAlignment="Center"
+                          Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </HierarchicalDataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:ValueNodeViewModel}">
+            <StackPanel Orientation="Horizontal">
+                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding Display}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="0" Header="Selection Mode" Padding="8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Content="Or (Any match)"
+                             GroupName="Mode"
+                             IsChecked="{Binding IsOrMode, Mode=TwoWay}"
+                             Margin="0,0,20,0"
+                             VerticalAlignment="Center"/>
+                <RadioButton Content="And (All match)"
+                             GroupName="Mode"
+                             IsChecked="{Binding IsAndMode, Mode=TwoWay}"
+                             VerticalAlignment="Center"/>
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1" Header="Family List (Category › Parameter › Value):" Padding="6" Margin="0,0,0,8">
+            <TreeView ItemsSource="{Binding Parameters}"
+                      BorderThickness="0"
+                      VirtualizingStackPanel.IsVirtualizing="True"
+                      VirtualizingStackPanel.VirtualizationMode="Recycling"/>
+        </GroupBox>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" Command="{Binding OkCommand}"
+                    Width="90" Height="28" Margin="0,0,8,0" IsDefault="True"/>
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    Width="90" Height="28" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

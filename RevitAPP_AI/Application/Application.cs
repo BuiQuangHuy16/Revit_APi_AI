@@ -2,7 +2,9 @@
 using Aplication.Commands.AutoDimColumns;
 using Aplication.Commands.DuplicateLegend;
 using Aplication.Commands.DuplicateSheet;
+using Aplication.Commands.ExportSchedule;
 using Aplication.Commands.LegendAssociate;
+using Aplication.Commands.QuickSelect;
 using Nice3point.Revit.Toolkit.External;
 using Serilog;
 using Serilog.Events;
@@ -47,6 +49,14 @@ namespace Aplication
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
 
             panel.AddPushButton<AutoDimColumnsCommand>("Auto Dim\nColumns")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<QuickSelectCommand>("Quick\nSelect")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<ExportScheduleCommand>("Export\nSchedule")
                 .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
         }

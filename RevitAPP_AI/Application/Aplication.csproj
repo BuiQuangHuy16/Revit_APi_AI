@@ -21,6 +21,13 @@
         <PackageReference Include="Serilog" Version="4.3.1"/>
         <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0"/>
 
+        <!-- Excel export (ClosedXML 0.102.x vẫn hỗ trợ net48 cho Revit 2023/2024) -->
+        <PackageReference Include="ClosedXML" Version="0.102.3"/>
+
+        <!-- Folder picker WPF-native, dùng thay cho System.Windows.Forms.FolderBrowserDialog
+             để tránh xung đột namespace 'View' (Autodesk.Revit.DB.View vs WinForms.View). -->
+        <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1"/>
+
         <!-- Build Automation-->
         <PackageReference Include="ILRepack" Version="2.0.44"/>
 
