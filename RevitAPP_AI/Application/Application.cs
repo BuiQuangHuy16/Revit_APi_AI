@@ -2,6 +2,7 @@
 using Aplication.Commands.AutoDimColumns;
 using Aplication.Commands.DuplicateLegend;
 using Aplication.Commands.DuplicateSheet;
+using Aplication.Commands.ExportCAD;
 using Aplication.Commands.ExportSchedule;
 using Aplication.Commands.LegendAssociate;
 using Aplication.Commands.QuickSelect;
@@ -57,6 +58,10 @@ namespace Aplication
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
 
             panel.AddPushButton<ExportScheduleCommand>("Export\nSchedule")
+                .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
+                .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
+
+            panel.AddPushButton<ExportCADCommand>("Export\nCAD")
                 .SetImage("/Aplication;component/Resources/Icons/RibbonIcon16.png")
                 .SetLargeImage("/Aplication;component/Resources/Icons/RibbonIcon32.png");
         }
